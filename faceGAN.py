@@ -134,8 +134,11 @@ D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_lo
 D_loss = D_loss_real + D_loss_fake
 G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.ones_like(D_logit_fake)))
 
-D_solver = tf.train.GradientDescentOptimizer(learning_rate=0.01).minimize(D_loss, var_list=theta_D)
-G_solver = tf.train.GradientDescentOptimizer(learning_rate=0.01).minimize(G_loss, var_list=theta_G)
+D_solver = tf.train.AdamOptimizer().minimize(D_loss, var_list=theta_D)
+G_solver = tf.train.AdamOptimizer().minimize(G_loss, var_list=theta_G)
+
+# D_solver = tf.train.GradientDescentOptimizer(learning_rate=0.1).minimize(D_loss, var_list=theta_D)
+# G_solver = tf.train.GradientDescentOptimizer(learning_rate=0.1).minimize(G_loss, var_list=theta_G)
 
 mb_size = 256
 Z_dim = 100

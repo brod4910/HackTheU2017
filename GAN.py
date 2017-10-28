@@ -1,10 +1,38 @@
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
+# from tensorflow.examples.tutorials.mnist import input_data
 import numpy as np
+import matplotlib
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import os
 
+
+# Make a queue of file names including all the JPEG images files in the relative
+# image directory.
+filename_queue = tf.train.string_input_producer(
+    tf.train.match_filenames_once("./data/*.jpg"))
+
+print(filename_queue.size())
+
+# Read an entire image file which is required since they're JPEGs, if the images
+# are too large they could be split in advance to smaller files or use the Fixed
+# reader to split up the file.
+image_reader = tf.WholeFileReader()
+#
+# # Read a whole file from the queue, the first returned value in the tuple is the
+# # filename which we are ignoring.
+_, image_file = image_reader.read(filename_queue)
+#
+# # Decode the image as a JPEG file, this will turn it into a Tensor which we can
+# # then use in training.
+input_data = tf.image.decode_jpeg(image_file, channels=1)
+
+input_data = tf.cast(input_data, tf.float32)
+
+input_data.set_shape([250, 250, 1])
+
+final_data = tf.reshape(input_data, [-1])
 
 def xavier_init(size):
     in_dim = size[0]
@@ -12,9 +40,9 @@ def xavier_init(size):
     return tf.random_normal(shape=size, stddev=xavier_stddev)
 
 
-X = tf.placeholder(tf.float32, shape=[None, 784])
+X = tf.placeholder(tf.float32, shape=[None, 62500])
 
-D_W1 = tf.Variable(xavier_init([784, 128]))
+D_W1 = tf.Variable(xavier_init([62500, 128]))
 D_b1 = tf.Variable(tf.zeros(shape=[128]))
 
 D_W2 = tf.Variable(xavier_init([128, 1]))
@@ -28,8 +56,8 @@ Z = tf.placeholder(tf.float32, shape=[None, 100])
 G_W1 = tf.Variable(xavier_init([100, 128]))
 G_b1 = tf.Variable(tf.zeros(shape=[128]))
 
-G_W2 = tf.Variable(xavier_init([128, 784]))
-G_b2 = tf.Variable(tf.zeros(shape=[784]))
+G_W2 = tf.Variable(xavier_init([128, 62500]))
+G_b2 = tf.Variable(tf.zeros(shape=[62500]))
 
 theta_G = [G_W1, G_W2, G_b1, G_b2]
 
@@ -65,7 +93,7 @@ def plot(samples):
         ax.set_xticklabels([])
         ax.set_yticklabels([])
         ax.set_aspect('equal')
-        plt.imshow(sample.reshape(28, 28), cmap='Greys_r')
+        plt.imshow(sample.reshape(250, 250), cmap='Greys_r')
 
     return fig
 
@@ -79,23 +107,25 @@ D_fake, D_logit_fake = discriminator(G_sample)
 
 # Alternative losses:
 # -------------------
-D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_real, labels=tf.ones_like(D_logit_real)))
+D_loss_real = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=D_logit_real, labels=tf.ones_like(D_logit_real)))
 D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.zeros_like(D_logit_fake)))
 D_loss = D_loss_real + D_loss_fake
 G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.ones_like(D_logit_fake)))
 
-D_solver = tf.train.AdamOptimizer().minimize(D_loss, var_list=theta_D)
-G_solver = tf.train.AdamOptimizer().minimize(G_loss, var_list=theta_G)
+D_solver = tf.train.AdagradOptimizer(learning_rate=.01).minimize(D_loss, var_list=theta_D)
+G_solver = tf.train.AdamOptimizer(learning_rate=.001).minimize(G_loss, var_list=theta_G)
 
 mb_size = 128
 Z_dim = 100
 
-mnist = input_data.read_data_sets('../../MNIST_data', one_hot=True)
+# mnist = input_data.read_data_sets('../../MNIST_data', one_hot=True)
 
-print(mnist)
+# print(mnist)
 
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
+sess.run(tf.local_variables_initializer())
+
 
 if not os.path.exists('out/'):
     os.makedirs('out/')
@@ -103,7 +133,7 @@ if not os.path.exists('out/'):
 i = 0
 
 for it in range(1000000):
-    if it % 1000 == 0:
+    if it % 10 == 0:
         samples = sess.run(G_sample, feed_dict={Z: sample_Z(16, Z_dim)})
 
         fig = plot(samples)
@@ -111,14 +141,21 @@ for it in range(1000000):
         i += 1
         plt.close(fig)
 
-    X_mb, _ = mnist.train.next_batch(mb_size)
+    X_mb = tf.train.batch([final_data], batch_size=mb_size)
 
-    print(X_mb.shape)
+    # print(X_mb)
 
-    _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: X_mb, Z: sample_Z(mb_size, Z_dim)})
+    # Coordinate the loading of image files.
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+    a = sess.run(X_mb)
+    # X_mb, _ = mnist.train.next_batch(mb_size)
+
+    _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: a, Z: sample_Z(mb_size, Z_dim)})
     _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: sample_Z(mb_size, Z_dim)})
 
-    if it % 1000 == 0:
+    if it % 10 == 0:
         print('Iter: {}'.format(it))
         print('D loss: {:.4}'. format(D_loss_curr))
         print('G_loss: {:.4}'.format(G_loss_curr))
