@@ -8,49 +8,50 @@ import os
 
 # Make a queue of file names including all the JPEG images files in the relative
 # image directory.
-# filename_queue = tf.train.string_input_producer(['C:/Users/krsty/Desktop/data/._Aaron_Peirsol_0001.jgp'])
+filename_queue = tf.train.string_input_producer(
+    tf.train.match_filenames_once("./data/*.jpg"))
+
+print(filename_queue.size())
 
 # Read an entire image file which is required since they're JPEGs, if the images
 # are too large they could be split in advance to smaller files or use the Fixed
 # reader to split up the file.
-# image_reader = tf.WholeFileReader()
+image_reader = tf.WholeFileReader()
 #
 # # Read a whole file from the queue, the first returned value in the tuple is the
 # # filename which we are ignoring.
-# _, image_file = image_reader.read(filename_queue)
+_, image_file = image_reader.read(filename_queue)
 #
 # # Decode the image as a JPEG file, this will turn it into a Tensor which we can
 # # then use in training.
-# input_data = tf.image.decode_jpeg(image_file, channels=1)
-#
-# input_data = tf.cast(input_data, tf.float32)
-#
-# input_data.set_shape([250, 250, 1])
-#
-# print(input_data)
-# # 8000 training and 5000 tests
-#
-# final_data = tf.reshape(input_data, [-1])
-#
-# print(final_data)
+input_data = tf.image.decode_jpeg(image_file, channels=1)
 
-from keras.preprocessing import image
+input_data = tf.cast(input_data, tf.float32)
 
-import matplotlib.pyplot as plt
+input_data.set_shape([250, 250, 1])
 
-img_path = "./data/Abdoulaye_Wade_0002.jpg"
-img = image.load_img(img_path, target_size=(250, 250))
-print(type(img))
+print(input_data)
+# 8000 training and 5000 tests
 
-x = image.img_to_array(img)
-print(type(x))
-print(x.shape)
-plt.imshow(x)
-plt.show()
+final_data = tf.reshape(input_data, [-1])
 
-newArray = x.flatten()
-print(type(newArray))
-print(newArray.shape)
+print(final_data)
+
+# from keras.preprocessing import image
+#
+# import matplotlib.pyplot as plt
+#
+# img_path = "./data/Abdoulaye_Wade_0002.jpg"
+# img = image.load_img(img_path, grayscale=True, target_size=(250, 250))
+# print(type(img))
+#
+# x = image.img_to_array(img)
+# print(type(x))
+# print(x.shape)
+#
+# newArray = x.flatten()
+# print(type(newArray))
+# print(newArray.shape)
 
 
 def xavier_init(size):
@@ -59,9 +60,9 @@ def xavier_init(size):
     return tf.random_normal(shape=size, stddev=xavier_stddev)
 
 
-X = tf.placeholder(tf.float32, shape=[None, 187500])
+X = tf.placeholder(tf.float32, shape=[None, 62500])
 
-D_W1 = tf.Variable(xavier_init([187500, 256]))
+D_W1 = tf.Variable(xavier_init([62500, 256]))
 D_b1 = tf.Variable(tf.zeros(shape=[256]))
 
 D_W2 = tf.Variable(xavier_init([256, 1]))
@@ -75,8 +76,8 @@ Z = tf.placeholder(tf.float32, shape=[None, 100])
 G_W1 = tf.Variable(xavier_init([100, 256]))
 G_b1 = tf.Variable(tf.zeros(shape=[256]))
 
-G_W2 = tf.Variable(xavier_init([256, 187500]))
-G_b2 = tf.Variable(tf.zeros(shape=[187500]))
+G_W2 = tf.Variable(xavier_init([256, 62500]))
+G_b2 = tf.Variable(tf.zeros(shape=[62500]))
 
 theta_G = [G_W1, G_W2, G_b1, G_b2]
 
@@ -134,14 +135,27 @@ G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_f
 D_solver = tf.train.AdamOptimizer().minimize(D_loss, var_list=theta_D)
 G_solver = tf.train.AdamOptimizer().minimize(G_loss, var_list=theta_G)
 
-mb_size = 128
+mb_size = 1
 Z_dim = 100
 
 # mnist = input_data.read_data_sets('../../MNIST_data', one_hot=True)
 
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
-# sess.run(squeeze2)
+
+sess.run(tf.local_variables_initializer())
+
+
+
+# Get an image tensor and print its value.
+# image_tensor = sess.run([final_data])
+# print(image_tensor)
+# npa = np.asarray(image_tensor, dtype=np.float32)
+# print(npa.shape)
+# print(npa)
+# print(type(npa))
+
+
 
 
 if not os.path.exists('out/'):
@@ -150,7 +164,7 @@ if not os.path.exists('out/'):
 i = 0
 
 for it in range(10000):
-    if it % 1000 == 0:
+    if it % 250 == 0:
         samples = sess.run(G_sample, feed_dict={Z: sample_Z(16, Z_dim)})
 
         fig = plot(samples)
@@ -158,18 +172,47 @@ for it in range(10000):
         i += 1
         plt.close(fig)
 
-    X_mb = tf.train.batch([newArray], batch_size=1)
+    X_mb = tf.train.batch([final_data], batch_size=256)
 
-    print(X_mb)
+    # print(X_mb)
 
-    _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: X_mb, Z: sample_Z(mb_size, Z_dim)})
+    # Coordinate the loading of image files.
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(sess=sess, coord=coord)
+
+    a = sess.run(X_mb)
+
+    # Finish off the filename queue coordinator.
+    # coord.request_stop()
+    # coord
+    # # coord.join(threads)
+    # coord.clear_stop()
+
+    # print(a)
+    # print(type(a))
+    # npa = np.asarray(a, dtype=np.float32)
+    # print(npa.shape)
+    # print(npa)
+    # print(type(npa))
+    # print(X_mb.shape)
+    #
+    # a = X_mb.eval(session=sess)
+
+    # X_mb = npa
+
+    # final_data = np.vstack([1, newArray])
+    # print(type(final_data))
+    # print(final_data.shape)
+
+    _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: a, Z: sample_Z(mb_size, Z_dim)})
     _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: sample_Z(mb_size, Z_dim)})
 
-    if it % 1000 == 0:
+    if it % 250 == 0:
         print('Iter: {}'.format(it))
-        print('D loss: {:.4}'. format(D_loss_curr))
+        print('D_loss: {:.4}'. format(D_loss_curr))
         print('G_loss: {:.4}'.format(G_loss_curr))
         print()
+
 
 
 # session = tf.InteractiveSession()
