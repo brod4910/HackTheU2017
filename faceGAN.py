@@ -1,6 +1,8 @@
 import tensorflow as tf
 # from tensorflow.examples.tutorials.mnist import input_data
 import numpy as np
+import matplotlib
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import os
@@ -126,16 +128,16 @@ D_fake, D_logit_fake = discriminator(G_sample)
 # G_loss = -tf.reduce_mean(tf.log(D_fake))
 
 # Alternative losses:
-# -------------------
+#
 D_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_real, labels=tf.ones_like(D_logit_real)))
 D_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.zeros_like(D_logit_fake)))
 D_loss = D_loss_real + D_loss_fake
 G_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=D_logit_fake, labels=tf.ones_like(D_logit_fake)))
 
-D_solver = tf.train.AdamOptimizer().minimize(D_loss, var_list=theta_D)
-G_solver = tf.train.AdamOptimizer().minimize(G_loss, var_list=theta_G)
+D_solver = tf.train.GradientDescentOptimizer(learning_rate=0.01).minimize(D_loss, var_list=theta_D)
+G_solver = tf.train.GradientDescentOptimizer(learning_rate=0.01).minimize(G_loss, var_list=theta_G)
 
-mb_size = 1
+mb_size = 256
 Z_dim = 100
 
 # mnist = input_data.read_data_sets('../../MNIST_data', one_hot=True)
@@ -165,7 +167,7 @@ i = 0
 
 for it in range(10000):
     print(it)
-    if it % 500 == 0:
+    if it % 10 == 0:
         samples = sess.run(G_sample, feed_dict={Z: sample_Z(16, Z_dim)})
 
         fig = plot(samples)
@@ -173,7 +175,7 @@ for it in range(10000):
         i += 1
         plt.close(fig)
 
-    X_mb = tf.train.batch([final_data], batch_size=128)
+    X_mb = tf.train.batch([final_data], batch_size=mb_size)
 
     # print(X_mb)
 
@@ -208,7 +210,7 @@ for it in range(10000):
     _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: a, Z: sample_Z(mb_size, Z_dim)})
     _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: sample_Z(mb_size, Z_dim)})
 
-    if it % 500 == 0:
+    if it % 10 == 0:
         print('Iter: {}'.format(it))
         print('D_loss: {:.4}'. format(D_loss_curr))
         print('G_loss: {:.4}'.format(G_loss_curr))
