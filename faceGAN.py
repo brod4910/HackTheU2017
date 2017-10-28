@@ -164,7 +164,8 @@ if not os.path.exists('out/'):
 i = 0
 
 for it in range(10000):
-    if it % 250 == 0:
+    print(it)
+    if it % 500 == 0:
         samples = sess.run(G_sample, feed_dict={Z: sample_Z(16, Z_dim)})
 
         fig = plot(samples)
@@ -172,7 +173,7 @@ for it in range(10000):
         i += 1
         plt.close(fig)
 
-    X_mb = tf.train.batch([final_data], batch_size=256)
+    X_mb = tf.train.batch([final_data], batch_size=128)
 
     # print(X_mb)
 
@@ -207,7 +208,7 @@ for it in range(10000):
     _, D_loss_curr = sess.run([D_solver, D_loss], feed_dict={X: a, Z: sample_Z(mb_size, Z_dim)})
     _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict={Z: sample_Z(mb_size, Z_dim)})
 
-    if it % 250 == 0:
+    if it % 500 == 0:
         print('Iter: {}'.format(it))
         print('D_loss: {:.4}'. format(D_loss_curr))
         print('G_loss: {:.4}'.format(G_loss_curr))
